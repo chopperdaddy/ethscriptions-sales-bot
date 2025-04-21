@@ -7,7 +7,7 @@
 _static
 
 # Twitter cookies
-twitter-cookies.json
+*-cookies.json
 
 # Logs
 logs
@@ -33,6 +33,7 @@ lerna-debug.log*
 *.launch
 .settings/
 *.sublime-workspace
+*.code-workspace
 
 # IDE - VSCode
 .vscode/*

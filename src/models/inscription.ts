@@ -50,4 +50,5 @@ export interface InscriptionMetadata {
   backgroundColor: string;
   websiteLink: string;
   collectionImageUri?: string | null | undefined;
+  twitterAccount?: string;
 }
