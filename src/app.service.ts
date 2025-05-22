@@ -151,7 +151,12 @@ export class AppService implements OnModuleInit {
     };
 
     // Post to twitter
-    await this.twitterSvc.sendTweet(notificationMessage);
+    const twitterAccount = collectionMetadata.twitterAccount; // Retrieve the Twitter account
+    if (!twitterAccount) {
+      Logger.error(`No Twitter account configured for collection: ${collectionMetadata.collectionName}`, 'AppService');
+      return;
+    }
+    await this.twitterSvc.sendTweet(notificationMessage, twitterAccount);
 
     // Save the image
     if (Number(process.env.SAVE_IMAGES)) {

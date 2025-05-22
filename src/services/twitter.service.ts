@@ -17,98 +17,100 @@ export class TwitterService {
   
   /** Twitter scraper instance for API interactions */
   private scraper: Scraper;
-  /** Path to store Twitter authentication cookies */
-  private readonly COOKIES_PATH = path.join(process.cwd(), 'twitter-cookies.json');
-
+  
   constructor() {
     this.scraper = new Scraper();
   }
 
   /**
-   * Initializes Twitter service by loading saved cookies or performing fresh login
-   * @throws Error if initialization fails
+   * Initializes Twitter service for a specific account by loading cookies or performing fresh login
+   * @param twitterAccount The account to initialize
    */
-  async initialize(): Promise<void> {
+  private async initializeForAccount(twitterAccount: string): Promise<void> {
+    const accountCookiesPath = path.join(process.cwd(), `${twitterAccount}-cookies.json`);
+    
     try {
-      // Try to load existing cookies
-      if (await this.loadCookies()) {
+      // Try to load the account-specific cookies
+      if (await this.loadCookies(accountCookiesPath)) {
         return;
       }
 
-      // If no valid cookies, perform fresh login
-      console.log('Performing fresh login...');
+      // If no valid cookies, perform fresh login for the specific account
+      console.log(`Performing fresh login for ${twitterAccount}...`);
       await this.scraper.login(
-        process.env.TWITTER_USERNAME,
-        process.env.TWITTER_PASSWORD,
-        process.env.TWITTER_EMAIL,
-        process.env.TWITTER_TWO_FACTOR_SECRET
+        process.env[`${twitterAccount}_USERNAME`],
+        process.env[`${twitterAccount}_PASSWORD`],
+        process.env[`${twitterAccount}_EMAIL`],
+        process.env[`${twitterAccount}_TWO_FACTOR_SECRET`]
       );
 
-      // Save the new cookies
-      await this.saveCookies();
-      console.log('Successfully saved cookies');
-
-      const me = await this.scraper.me();
-      console.log('Logged into twitters as:', me.username);
+      // Save the new cookies for the specific account
+      await this.saveCookies(accountCookiesPath);
+      console.log(`Successfully logged into ${twitterAccount}`);
     } catch (error) {
-      console.error('Failed to initialize Twitter service:', error);
+      console.error(`Failed to initialize Twitter service for ${twitterAccount}:`, error);
       throw error;
     }
   }
 
   /**
    * Loads saved cookies from file and sets them in the scraper
+   * @param accountCookiesPath Path to account-specific cookies file
    * @returns True if cookies were successfully loaded, false otherwise
    */
-  private async loadCookies(): Promise<boolean> {
+  private async loadCookies(accountCookiesPath: string): Promise<boolean> {
     try {
-      if (fs.existsSync(this.COOKIES_PATH)) {
-        const cookiesJson = fs.readFileSync(this.COOKIES_PATH, 'utf8');
+      if (fs.existsSync(accountCookiesPath)) {
+        const cookiesJson = fs.readFileSync(accountCookiesPath, 'utf8');
         const cookiesArray = JSON.parse(cookiesJson);
-        // console.log('Raw cookies from file:', cookiesArray);
 
         // Format cookies as strings in the standard cookie format
         const formattedCookies = cookiesArray.map(cookie => {
           return `${cookie.key}=${cookie.value}; Domain=${cookie.domain}; Path=${cookie.path}${cookie.secure ? '; Secure' : ''}${cookie.httpOnly ? '; HttpOnly' : ''}${cookie.expires ? `; Expires=${new Date(cookie.expires).toUTCString()}` : ''}${cookie.sameSite ? `; SameSite=${cookie.sameSite}` : ''}`;
         });
 
-        // console.log('Formatted cookie strings:', formattedCookies);
         await this.scraper.setCookies(formattedCookies);
         return true;
       }
     } catch (error) {
       console.error('Error loading cookies:', error);
-      console.error('Full error:', JSON.stringify(error, null, 2));
+      return false;
     }
     return false;
   }
 
   /**
-   * Saves current session cookies to file
+   * Saves current session cookies to file for a specific account
    * Only saves if essential authentication cookies are present
+   * @param accountCookiesPath Path to account-specific cookies file
    */
-  private async saveCookies(): Promise<void> {
+  private async saveCookies(accountCookiesPath: string): Promise<void> {
     try {
       const cookies = await this.scraper.getCookies();
-      fs.writeFileSync(this.COOKIES_PATH, JSON.stringify(cookies, null, 2));
+      fs.writeFileSync(accountCookiesPath, JSON.stringify(cookies, null, 2));
       console.log('Successfully saved session cookies');
     } catch (error) {
       console.error('Error saving cookies:', error);
-      console.error('Full error:', JSON.stringify(error, null, 2));
     }
   }
 
   /**
-   * Sends a tweet with optional image attachment
-   * @param text The text content of the tweet
-   * @param imagePath Optional path to image file to attach
+   * Sends a tweet with optional image attachment from a specific Twitter account
+   * If TWITTER_ENABLED is 0, skips the posting and focuses on image saving
+   * @param data The tweet content and data
+   * @param twitterAccount The Twitter account to send the tweet from
    * @throws Error if tweet fails to send
    */
-  async sendTweet(data: NotificationMessage): Promise<void> {
-    if (!Number(process.env.TWITTER_ENABLED)) return;
+  async sendTweet(data: NotificationMessage, twitterAccount: string): Promise<void> {
+    // Skip Twitter if it's disabled (TWITTER_ENABLED=0)
+    if (!Number(process.env.TWITTER_ENABLED)) {
+      console.log("Twitter is disabled (TWITTER_ENABLED=0), skipping tweet and saving image locally instead.");
+      return;  // Skip the Twitter posting logic
+    }
 
     try {
-      await this.initialize();
+      // If Twitter is enabled, proceed with the tweet logic
+      await this.initializeForAccount(twitterAccount);
 
       const { title, message, link, imageBuffer, filename } = data;
       await this.scraper.sendTweet(
